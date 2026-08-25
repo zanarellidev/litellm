@@ -4224,6 +4224,22 @@ def test_add_deployment_model_to_endpoint_for_llm_passthrough_route():
         result["endpoint"] == "/model/us.meta.llama3-8b-instruct-v1:0/invoke"
     ), f"Expected '/model/us.meta.llama3-8b-instruct-v1:0/invoke', got '{result['endpoint']}'"
 
+    # Test Case 5: /bedrock/... passthrough forwarding to a bedrock_mantle deployment. The
+    # proxy hardcodes custom_llm_provider="bedrock" but the deployment's model uses the
+    # "bedrock_mantle/" prefix, so the deployment's prefix must win when rewriting the endpoint.
+    kwargs = {
+        "endpoint": "/model/mantle-deployment/invoke",
+        "custom_llm_provider": "bedrock",
+    }
+    result = router._add_deployment_model_to_endpoint_for_llm_passthrough_route(
+        kwargs=kwargs,
+        model="mantle-deployment",
+        model_name="bedrock_mantle/us.openai.gpt-5.6-sol",
+    )
+    assert (
+        result["endpoint"] == "/model/us.openai.gpt-5.6-sol/invoke"
+    ), f"Expected '/model/us.openai.gpt-5.6-sol/invoke', got '{result['endpoint']}'"
+
 
 def test_update_kwargs_with_deployment_uses_pass_through_request_timeout():
     router = litellm.Router(

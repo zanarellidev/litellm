@@ -4642,20 +4642,15 @@ class Router:
           it should be actually sent as /model/us.anthropic.claude-3-5-sonnet-20240620-v1:0/invoke
         """
         if "endpoint" in kwargs and kwargs["endpoint"]:
-            # For provider-specific endpoints, strip the provider prefix from model_name
-            # e.g., "bedrock/us.anthropic.claude-3-5-sonnet-20240620-v1:0" -> "us.anthropic.claude-3-5-sonnet-20240620-v1:0"
             from litellm import get_llm_provider
 
             try:
-                # get_llm_provider returns (model_without_prefix, provider, api_key, api_base)
                 stripped_model_name, _, _, _ = get_llm_provider(
                     model=model_name,
-                    custom_llm_provider=kwargs.get("custom_llm_provider"),
                     api_base=kwargs.get("api_base"),
                 )
                 replacement_model_name = stripped_model_name
             except Exception:
-                # If get_llm_provider fails, fall back to using model_name as-is
                 replacement_model_name = model_name
 
             kwargs["endpoint"] = kwargs["endpoint"].replace(model, replacement_model_name)

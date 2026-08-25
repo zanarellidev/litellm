@@ -9,7 +9,7 @@ from litellm.llms.bedrock.passthrough.transformation import BedrockPassthroughCo
 from litellm.llms.bedrock_mantle.passthrough.transformation import BedrockMantlePassthroughConfig
 from litellm.llms.custom_httpx.http_handler import HTTPHandler
 from litellm.passthrough.main import llm_passthrough_route
-from litellm.types.utils import LlmProviders
+from litellm.types.utils import LlmProviders, ModelResponse
 from litellm.utils import ProviderConfigManager
 
 MANTLE_API_BASE = "https://bedrock-mantle.us-east-2.api.aws"
@@ -150,3 +150,39 @@ def test_invoke_passthrough_route_reaches_bedrock_runtime_for_a_mantle_deploymen
     assert str(sent["url"]) == f"https://bedrock-runtime.us-east-2.amazonaws.com/{INVOKE_ENDPOINT}"
     assert sent["headers"]["Authorization"] == f"Bearer {expected_bearer}"
     assert json.loads(sent["content"]) == REQUEST_BODY
+
+
+def test_logging_non_streaming_converse_response_parses_native_bedrock_shape():
+    """
+    Mantle passthrough Converse calls hit bedrock-runtime and return a native Converse
+    body (output/stopReason/usage). Logging must pick the Bedrock Converse transform
+    (not BedrockMantleChatConfig, which expects OpenAI chat completions JSON) so cost
+    tracking and success callbacks receive a fully populated ModelResponse.
+    """
+    converse_body = {
+        "output": {"message": {"role": "assistant", "content": [{"text": "pong"}]}},
+        "stopReason": "end_turn",
+        "usage": {"inputTokens": 11, "outputTokens": 7, "totalTokens": 18},
+    }
+    httpx_response = httpx.Response(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=json.dumps(converse_body).encode("utf-8"),
+        request=httpx.Request(
+            "POST",
+            "https://bedrock-runtime.us-east-2.amazonaws.com/model/us.anthropic.claude-sonnet-4-20250514-v1:0/converse",
+        ),
+    )
+    result = BedrockMantlePassthroughConfig().logging_non_streaming_response(
+        model="us.anthropic.claude-sonnet-4-20250514-v1:0",
+        custom_llm_provider="bedrock_mantle",
+        httpx_response=httpx_response,
+        request_data={"messages": [{"role": "user", "content": "ping"}]},
+        logging_obj=MagicMock(),
+        endpoint="model/us.anthropic.claude-sonnet-4-20250514-v1:0/converse",
+    )
+    assert isinstance(result, ModelResponse)
+    assert result.choices[0].message.content == "pong"
+    assert result.usage.prompt_tokens == 11
+    assert result.usage.completion_tokens == 7
+    assert result.usage.total_tokens == 18

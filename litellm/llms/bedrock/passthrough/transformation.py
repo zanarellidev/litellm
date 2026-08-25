@@ -137,7 +137,7 @@ class BedrockPassthroughConfig(BaseAWSLLM, BedrockModelInfo, BedrockEventStreamD
             return None
 
         provider_chat_config: Final = ProviderConfigManager.get_provider_chat_config(
-            provider=LlmProviders(custom_llm_provider),
+            provider=LlmProviders.BEDROCK,
             model=chat_config_model,
         )
 
